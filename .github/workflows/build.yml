@@ -32,3 +32,4 @@ jobs:
       with:
         name: PDF-Konverter-Knjiga
         path: dist/app.exe
+
