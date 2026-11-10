@@ -1,18 +1,31 @@
 import os
+import sys
+
+# --- PORTABLE IZOLACIJA (BEZ OSTAVLJANJA TRAGOVA NA C: ILI APPDATA) ---
+# Određivanje mape u kojoj se nalazi .exe datoteka
+if getattr(sys, 'frozen', False):
+    PROGRAM_DIR = os.path.dirname(sys.executable)
+else:
+    PROGRAM_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Prisiljavanje sustava da sve privremene zapise sprema isključivo u mapu programa
+os.environ["TMPDIR"] = PROGRAM_DIR
+os.environ["TEMP"] = PROGRAM_DIR
+os.environ["TMP"] = PROGRAM_DIR
+
 import tkinter as tk
 from tkinter import filedialog, messagebox
-import ttkbootstrap as tb  # Moderna biblioteka za GUI teme
+import configparser  # Za rukovanje .ini datotekom
+import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from PIL import Image
 
 try:
     import pi_heif
     pi_heif.register_heif_opener()
-    HEIC_SUPPORT = True
 except ImportError:
-    HEIC_SUPPORT = False
+    pass
 
-# Dimenzije optimizirane za ekrane
 FORMATE_PAPIRA = {
     "A5": (420, 595),
     "A4": (595, 842),
@@ -25,73 +38,125 @@ FORMATE_PAPIRA = {
     "Ledger/Tabloid (US)": (792, 1224)
 }
 
+INI_PATH = os.path.join(PROGRAM_DIR, "postavke.ini")
+
 class PDFConverterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Konverter Skeniranih Knjiga u PDF v1.2")
-        self.root.geometry("600x480")
+        self.root.title("Premium PDF Book Studio v2.1 (Portable)")
+        self.root.geometry("650x580")
         self.root.resizable(False, False)
         
-        self.ulazna_mapa = tk.StringVar()
+        # Zadane varijable (u slučaju da .ini ne postoji)
+        self.izvor_tip = tk.StringVar(value="mapa")
+        self.odabrani_putokaz = tk.StringVar(value="Nije odabrano ništa...")
+        self.odabrane_datoteke_lista = []
         self.izlazni_pdf = tk.StringVar()
+        
         self.odabrani_format = tk.StringVar(value="A4")
         self.kvaliteta_kompresije = tk.IntVar(value=60)
+        self.ocr_ukljucen = tk.BooleanVar(value=False)
+        
+        # Učitaj lokalne postavke iz .ini datoteke ako postoje
+        self.ucitaj_postavke()
         
         self.kreiraj_sucelje()
 
+    def ucitaj_postavke(self):
+        if os.path.exists(INI_PATH):
+            try:
+                config = configparser.ConfigParser()
+                config.read(INI_PATH, encoding='utf-8')
+                if 'Postavke' in config:
+                    sekcija = config['Postavke']
+                    self.odabrani_format.set(sekcija.get('FormatPapira', 'A4'))
+                    self.kvaliteta_kompresije.set(sekcija.getint('KvalitetaKompresije', 60))
+                    self.ocr_ukljucen.set(sekcija.getboolean('OcrUkljucen', False))
+            except Exception:
+                pass # Ako je .ini oštećen, koristi zadane vrijednosti
+
+    def spremi_postavke(self):
+        try:
+            config = configparser.ConfigParser()
+            config['Postavke'] = {
+                'FormatPapira': self.odabrani_format.get(),
+                'KvalitetaKompresije': str(self.kvaliteta_kompresije.get()),
+                'OcrUkljucen': str(self.ocr_ukljucen.get())
+            }
+            with open(INI_PATH, 'w', encoding='utf-8') as configfile:
+                config.write(configfile)
+        except Exception:
+            pass
+
     def kreiraj_sucelje(self):
-        # Glavni kontejner s marginama
         okvir = tb.Frame(self.root, padding=25)
         okvir.pack(fill=BOTH, expand=True)
         
-        # Naslov aplikacije
-        naslov = tb.Label(okvir, text="📚 Pretvarač Knjiga u PDF", font=("Segoe UI", 16, "bold"), bootstyle=DEFAULT)
-        naslov.pack(anchor=W, pady=(0, 20))
+        # --- FANCY VIZUALNI PANEL ---
+        panel = tb.LabelFrame(okvir, text=" Tijek Pretvorbe Knjige ", padding=15, bootstyle=PRIMARY)
+        panel.pack(fill=X, pady=(0, 15))
         
-        # 1. Ulazna mapa
-        okvir_ulaz = tb.Frame(okvir)
+        okvir_toka = tb.Frame(panel)
+        okvir_toka.pack(anchor=CENTER)
+        
+        tb.Label(okvir_toka, text="📖 ULAZNI FORMATI\n[ JPG, JP2, PNG, HEIC, BMP ]", 
+                 font=("Segoe UI", 10, "bold"), justify=CENTER, bootstyle=INFO).pack(side=LEFT, padx=10)
+        
+        tb.Label(okvir_toka, text=" ➔ ➔ ➔ ", font=("Segoe UI", 20, "bold"), bootstyle=WARNING).pack(side=LEFT, padx=20)
+        
+        tb.Label(okvir_toka, text="📄 IZLAZNI DOKUMENT\n[ Optimizirani PDF ]", 
+                 font=("Segoe UI", 10, "bold"), justify=CENTER, bootstyle=SUCCESS).pack(side=LEFT, padx=10)
+        
+        # --- 1. ODABIR ULAZA ---
+        okvir_ulaz = tb.LabelFrame(okvir, text=" 1. Odabir ulaznih slika ", padding=15)
         okvir_ulaz.pack(fill=X, pady=8)
-        tb.Label(okvir_ulaz, text="1. Mapa sa skeniranim slikama:", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
         
-        polje_ulaz = tb.Entry(okvir_ulaz, textvariable=self.ulazna_mapa, font=("Segoe UI", 10))
-        polje_ulaz.pack(side=LEFT, fill=X, expand=True, padx=(0, 10))
-        tb.Button(okvir_ulaz, text="Pregledaj...", bootstyle=SECONDARY, command=self.odaberi_mapu).pack(side=RIGHT)
+        okvir_gumbiju = tb.Frame(okvir_ulaz)
+        okvir_gumbiju.pack(fill=X, pady=(0, 10))
         
-        # 2. Izlazni PDF
-        okvir_izlaz = tb.Frame(okvir)
+        tb.Button(okvir_gumbiju, text="📂 Učitaj cijelu mapu...", bootstyle=INFO, width=22, command=self.odaberi_mapu).pack(side=LEFT, padx=(0, 10))
+        tb.Button(okvir_gumbiju, text="🖼️ Odaberi datoteke...", bootstyle=PRIMARY, width=22, command=self.odaberi_datoteke_pojedinacno).pack(side=LEFT)
+        
+        tb.Label(okvir_ulaz, textvariable=self.odabrani_putokaz, font=("Segoe UI", 9, "italic"), bootstyle=MUTED).pack(anchor=W)
+        
+        # --- 2. ODABIR IZLAZA ---
+        okvir_izlaz = tb.LabelFrame(okvir, text=" 2. Odredište PDF datoteke ", padding=15)
         okvir_izlaz.pack(fill=X, pady=8)
-        tb.Label(okvir_izlaz, text="2. Gdje spremiti PDF datoteku:", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
         
         polje_izlaz = tb.Entry(okvir_izlaz, textvariable=self.izlazni_pdf, font=("Segoe UI", 10))
         polje_izlaz.pack(side=LEFT, fill=X, expand=True, padx=(0, 10))
         tb.Button(okvir_izlaz, text="Spremi kao...", bootstyle=SECONDARY, command=self.odaberi_pdf).pack(side=RIGHT)
         
-        # Redak za Format i Kompresiju (jedan pored drugog za ljepši izgled)
+        # --- 3. POSTAVKE I OCR PREKIDAČ ---
         okvir_postavke = tb.Frame(okvir)
         okvir_postavke.pack(fill=X, pady=15)
         
-        # 3. Format papira
+        # Format papira
         okvir_format = tb.Frame(okvir_postavke)
-        okvir_format.pack(side=LEFT, fill=X, expand=True, padx=(0, 20))
-        tb.Label(okvir_format, text="3. Format papira:", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
-        izbornik_formata = tb.Combobox(okvir_format, textvariable=self.odabrani_format, values=list(FORMATE_PAPIRA.keys()), state="readonly", font=("Segoe UI", 10))
+        okvir_format.pack(side=LEFT, fill=X, expand=True, padx=(0, 15))
+        tb.Label(okvir_format, text="Format papira:", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
+        izbornik_formata = tb.Combobox(okvir_format, textvariable=self.odabrani_format, values=list(FORMATE_PAPIRA.keys()), state="readonly")
         izbornik_formata.pack(fill=X)
         
-        # 4. Kompresija
+        # Kompresija
         okvir_kompresija = tb.Frame(okvir_postavke)
-        okvir_kompresija.pack(side=RIGHT, fill=X, expand=True)
-        tb.Label(okvir_kompresija, text="4. Kvaliteta slika (1-100):", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
-        
+        okvir_kompresija.pack(side=LEFT, fill=X, expand=True, padx=(0, 15))
+        tb.Label(okvir_kompresija, text="Kvaliteta slika (1-100):", font=("Segoe UI", 10)).pack(anchor=W, pady=2)
         okvir_klizaca = tb.Frame(okvir_kompresija)
         okvir_klizaca.pack(fill=X)
         klizac = tb.Scale(okvir_klizaca, from_=1, to=100, variable=self.kvaliteta_kompresije, bootstyle=SUCCESS, command=self.azuriraj_oznaku_kvalitete)
-        klizac.pack(side=LEFT, fill=X, expand=True, padx=(0, 10))
-        self.oznaka_kvalitete = tb.Label(okvir_klizaca, text="60%", font=("Segoe UI", 10, "bold"), width=4)
+        klizac.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+        self.oznaka_kvalitete = tb.Label(okvir_klizaca, text=f"{self.kvaliteta_kompresije.get()}%", font=("Segoe UI", 10, "bold"), width=4)
         self.oznaka_kvalitete.pack(side=RIGHT)
         
-        # 5. Gumb za pokretanje (Glavna akcija u uočljivoj boji)
-        self.gumb_pokreni = tb.Button(okvir, text="KREIRAJ OPTIMIZIRANI PDF", bootstyle=SUCCESS, padding=12, command=self.pokreni_pretvorbu)
-        self.gumb_pokreni.pack(fill=X, pady=(30, 0))
+        # OCR Prekidač
+        okvir_ocr = tb.Frame(okvir_postavke)
+        okvir_ocr.pack(side=RIGHT, fill=X, pady=(15, 0))
+        tb.Checkbutton(okvir_ocr, text="Uključi OCR tekstualni sloj", variable=self.ocr_ukljucen, bootstyle="round-toggle").pack(anchor=E)
+        
+        # --- 4. GLAVNI GUMB ZA POKRETANJE ---
+        self.gumb_pokreni = tb.Button(okvir, text="🚀 POKRENI KREIRANJE PREMIUM PDF-a", bootstyle=SUCCESS, padding=12, command=self.pokreni_pretvorbu)
+        self.gumb_pokreni.pack(fill=X, pady=(20, 0))
 
     def azuriraj_oznaku_kvalitete(self, *args):
         self.oznaka_kvalitete.config(text=f"{int(self.kvaliteta_kompresije.get())}%")
@@ -99,9 +164,23 @@ class PDFConverterApp:
     def odaberi_mapu(self):
         mapa = filedialog.askdirectory()
         if mapa:
-            self.ulazna_mapa.set(mapa)
+            self.izvor_tip.set("mapa")
+            self.odabrane_datoteke_lista = []
+            self.odabrani_putokaz.set(f"Odabrana mapa: {mapa}")
             if not self.izlazni_pdf.get():
-                self.izlazni_pdf.set(os.path.join(mapa, "skenirana_knjiga_opt.pdf"))
+                self.izlazni_pdf.set(os.path.join(mapa, "skenirana_knjiga_studio.pdf"))
+
+    def odaberi_datoteke_pojedinacno(self):
+        ekstenzije = [("Sve podržane slike", "*.jpg *.jpeg *.png *.bmp *.jp2 *.gif *.heic")]
+        datoteke = filedialog.askopenfilenames(filetypes=ekstenzije)
+        if datoteke:
+            self.izvor_tip.set("datoteke")
+            self.odabrane_datoteke_lista = list(datoteke)
+            self.odabrane_datoteke_lista.sort()
+            prva_direktorij = os.path.dirname(self.odabrane_datoteke_lista[0])
+            self.odabrani_putokaz.set(f"Odabrano pojedinačno: {len(self.odabrane_datoteke_lista)} slika.")
+            if not self.izlazni_pdf.get():
+                self.izlazni_pdf.set(os.path.join(prva_direktorij, "izabrane_stranice_studio.pdf"))
 
     def odaberi_pdf(self):
         datoteka = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF datoteke", "*.pdf")])
@@ -109,61 +188,36 @@ class PDFConverterApp:
             self.izlazni_pdf.set(datoteka)
 
     def pokreni_pretvorbu(self):
-        mapa = self.ulazna_mapa.get()
         izlaz = self.izlazni_pdf.get()
-        
-        if not mapa or not os.path.exists(mapa):
-            messagebox.showerror("Greška", "Molimo odaberite ispravnu mapu sa slikama!")
-            return
         if not izlaz:
-            messagebox.showerror("Greška", "Molimo definirajte gdje želite spremiti PDF!")
+            messagebox.showerror("Greška", "Molimo definirajte lokaciju izlaznog PDF-a!")
             return
             
-        ekstenzije = ('.jpg', '.jpeg', '.png', '.bmp', '.jp2', '.gif', '.heic')
-        slikovne_datoteke = [f for f in os.listdir(mapa) if f.lower().endswith(ekstenzije)]
-        slikovne_datoteke.sort()
-        
-        if not slikovne_datoteke:
-            messagebox.showwarning("Nema slika", "U odabranoj mapi nema podržanih slika!")
+        slike_za_obradu = []
+        if self.izvor_tip.get() == "mapa":
+            putanja_mape = self.odabrani_putokaz.get().replace("Odabrana mapa: ", "")
+            if not os.path.exists(putanja_mape):
+                messagebox.showerror("Greška", "Molimo odaberite ispravnu mapu!")
+                return
+            ekstenzije = ('.jpg', '.jpeg', '.png', '.bmp', '.jp2', '.gif', '.heic')
+            slike_za_obradu = [os.path.join(putanja_mape, f) for f in os.listdir(putanja_mape) if f.lower().endswith(ekstenzije)]
+            slike_za_obradu.sort()
+        else:
+            slike_za_obradu = self.odabrane_datoteke_lista
+
+        if not slike_za_obradu:
+            messagebox.showwarning("Nema slika", "Nema odabranih slika za pretvorbu!")
             return
             
         sirina_papira, visina_papira = FORMATE_PAPIRA[self.odabrani_format.get()]
-        lista_slika_za_pdf = []
+        lista_finalnih_slika = []
         
         try:
-            for datoteka in slikovne_datoteke:
-                putanja_slike = os.path.join(mapa, datoteka)
-                img = Image.open(putanja_slike)
-                
+            for putanja in slike_za_obradu:
+                img = Image.open(putanja)
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
                 
                 img.thumbnail((sirina_papira, visina_papira), Image.Resampling.LANCZOS)
                 
                 pozadina = Image.new('RGB', (sirina_papira, visina_papira), (255, 255, 255))
-                offset = ((sirina_papira - img.width) // 2, (visina_papira - img.height) // 2)
-                pozadina.paste(img, offset)
-                
-                lista_slika_za_pdf.append(pozadina)
-                
-            if lista_slika_za_pdf:
-                prva_stranica = lista_slika_za_pdf[0]
-                ostale_stranice = lista_slika_za_pdf[1:]
-                
-                prva_stranica.save(
-                    izlaz,
-                    save_all=True,
-                    append_images=ostale_stranice,
-                    quality=int(self.kvaliteta_kompresije.get()),
-                    optimize=True,
-                    progressive=True
-                )
-                messagebox.showinfo("Uspjeh", f"Knjiga je uspješno optimizirana!\nSpremljeno na: {izlaz}")
-        except Exception as e:
-            messagebox.showerror("Greška pri konverziji", f"Došlo je do greške: {str(e)}")
-
-if __name__ == "__main__":
-    # Koristimo 'cyborg' temu za moderan tamni izgled aplikacije
-    root = tb.Window(themename="cyborg")
-    app = PDFConverterApp(root)
-    root.mainloop()
