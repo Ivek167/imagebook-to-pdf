@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025 # Prebaceno na najnoviji Windows posluzitelj koji ima ugraden Node 22
 
     steps:
     - name: Preuzimanje koda
@@ -16,16 +16,17 @@ jobs:
     - name: Postavljanje Pythona
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11' # Koristi stabilniji i brzi Python 3.11
+        cache: 'pip'
 
-    - name: Instalacija osnovnih paketa
+    - name: Instalacija biblioteka
       run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install -r requirements.txt
+        python -m pip install --upgrade pip
+        pip install pillow pyinstaller
 
-    - name: Pakiranje u EXE preko PyInstallera
+    - name: Pakiranje u EXE
       run: |
-        pyinstaller --clean --onefile app.py
+        pyinstaller --noconsole --onefile app.py
 
     - name: Podizanje gotove aplikacije
       uses: actions/upload-artifact@v4
