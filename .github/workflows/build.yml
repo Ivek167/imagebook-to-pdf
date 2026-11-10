@@ -25,7 +25,7 @@ jobs:
 
     - name: Pakiranje u EXE
       run: |
-        pyinstaller --noconsole --onefile --collect-all ttkbootstrap app.py
+        pyinstaller --noconsole --onefile app.py
 
     - name: Podizanje gotove aplikacije
       uses: actions/upload-artifact@v4
