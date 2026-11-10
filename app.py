@@ -1,208 +1,172 @@
 import os
 import sys
-import configparser
 
-# --- PORTABLE IZOLACIJA ---
-if getattr(sys, 'frozen', False):
-    PROGRAM_DIR = os.path.dirname(sys.executable)
-else:
-    PROGRAM_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    if getattr(sys, 'frozen', False):
+        PROGRAM_DIR = os.path.dirname(sys.executable)
+    else:
+        PROGRAM_DIR = os.path.dirname(os.path.abspath(__file__))
 
-os.environ["TMPDIR"] = PROGRAM_DIR
-os.environ["TEMP"] = PROGRAM_DIR
-os.environ["TMP"] = PROGRAM_DIR
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+    import configparser
+    from PIL import Image
 
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-from PIL import Image
+    FORMATE_PAPIRA = {
+        "A5": (420, 595),
+        "A4": (595, 842),
+        "A3": (842, 1191),
+        "A2": (1191, 1684),
+        "A1": (1684, 2384),
+        "A0": (2384, 3370),
+        "Letter (US)": (612, 792),
+        "Legal (US)": (612, 1008),
+        "Ledger/Tabloid (US)": (792, 1224)
+    }
 
-FORMATE_PAPIRA = {
-    "A5": (420, 595),
-    "A4": (595, 842),
-    "A3": (842, 1191),
-    "A2": (1191, 1684),
-    "A1": (1684, 2384),
-    "A0": (2384, 3370),
-    "Letter (US)": (612, 792),
-    "Legal (US)": (612, 1008),
-    "Ledger/Tabloid (US)": (792, 1224)
-}
+    INI_PATH = os.path.join(PROGRAM_DIR, "postavke.ini")
 
-INI_PATH = os.path.join(PROGRAM_DIR, "postavke.ini")
+    class PDFConverterApp:
+        def __init__(self, root):
+            self.root = root
+            self.root.title("Premium PDF Book Studio v2.6 (Portable)")
+            self.root.geometry("620x520")
+            self.root.configure(bg="#1E293B")
+            self.root.resizable(False, False)
+            
+            self.izvor_tip = tk.StringVar(value="mapa")
+            self.odabrani_putokaz = tk.StringVar(value="Nije odabrano nista...")
+            self.odabrane_datoteke_lista = []
+            self.izlazni_pdf = tk.StringVar()
+            
+            self.odabrani_format = tk.StringVar(value="A4")
+            self.kvaliteta_kompresije = tk.IntVar(value=60)
+            self.ocr_ukljucen = tk.BooleanVar(value=False)
+            
+            self.ucitaj_postavke()
+            self.kreiraj_sucelje()
 
-class PDFConverterApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Premium PDF Book Studio v2.5 (Portable)")
-        self.root.geometry("650x580")
-        self.root.configure(bg="#1E293B")  # Duboka tamno-plava moderna pozadina
-        self.root.resizable(False, False)
-        
-        self.izvor_tip = tk.StringVar(value="mapa")
-        self.odabrani_putokaz = tk.StringVar(value="Nije odabrano nista...")
-        self.odabrane_datoteke_lista = []
-        self.izlazni_pdf = tk.StringVar()
-        
-        self.odabrani_format = tk.StringVar(value="A4")
-        self.kvaliteta_kompresije = tk.IntVar(value=60)
-        self.ocr_ukljucen = tk.BooleanVar(value=False)
-        
-        self.ucitaj_postavke()
-        self.postavi_stilove()
-        self.kreiraj_sucelje()
+        def ucitaj_postavke(self):
+            if os.path.exists(INI_PATH):
+                try:
+                    config = configparser.ConfigParser()
+                    config.read(INI_PATH, encoding='utf-8')
+                    if 'Postavke' in config:
+                        sekcija = config['Postavke']
+                        self.odabrani_format.set(sekcija.get('FormatPapira', 'A4'))
+                        self.kvaliteta_kompresije.set(sekcija.getint('KvalitetaKompresije', 60))
+                        self.ocr_ukljucen.set(sekcija.getboolean('OcrUkljucen', False))
+                except Exception:
+                    pass
 
-    def ucitaj_postavke(self):
-        if os.path.exists(INI_PATH):
+        def spremi_postavke(self):
             try:
                 config = configparser.ConfigParser()
-                config.read(INI_PATH, encoding='utf-8')
-                if 'Postavke' in config:
-                    sekcija = config['Postavke']
-                    self.odabrani_format.set(sekcija.get('FormatPapira', 'A4'))
-                    self.kvaliteta_kompresije.set(sekcija.getint('KvalitetaKompresije', 60))
-                    self.ocr_ukljucen.set(sekcija.getboolean('OcrUkljucen', False))
+                config['Postavke'] = {
+                    'FormatPapira': self.odabrani_format.get(),
+                    'KvalitetaKompresije': str(self.kvaliteta_kompresije.get()),
+                    'OcrUkljucen': str(self.ocr_ukljucen.get())
+                }
+                with open(INI_PATH, 'w', encoding='utf-8') as configfile:
+                    config.write(configfile)
             except Exception:
                 pass
 
-    def spremi_postavke(self):
-        try:
-            config = configparser.ConfigParser()
-            config['Postavke'] = {
-                'FormatPapira': self.odabrani_format.get(),
-                'KvalitetaKompresije': str(self.kvaliteta_kompresije.get()),
-                'OcrUkljucen': str(self.ocr_ukljucen.get())
-            }
-            with open(INI_PATH, 'w', encoding='utf-8') as configfile:
-                config.write(configfile)
-        except Exception:
-            pass
-
-    def postavi_stilove(self):
-        self.stil = ttk.Style()
-        self.stil.theme_use('clam')
-        
-        BOJA_POZADINE = "#1E293B"
-        BOJA_PANELA = "#0F172A"
-        BOJA_TEKSTA = "#F8FAFC"
-        
-        # Postavljanje ugrađenog Dark Mode dizajna preko Ttk stilova
-        self.stil.configure(".", background=BOJA_POZADINE, foreground=BOJA_TEKSTA)
-        self.stil.configure("TFrame", background=BOJA_POZADINE)
-        self.stil.configure("TLabel", background=BOJA_POZADINE, foreground=BOJA_TEKSTA, font=("Arial", 10))
-        self.stil.configure("Naslov.TLabel", font=("Arial", 15, "bold"), foreground="#38BDF8")
-        
-        self.stil.configure("TEntry", fieldbackground=BOJA_PANELA, foreground="white", insertcolor="white", borderwidth=1, focusthickness=0)
-        self.stil.configure("TCombobox", fieldbackground=BOJA_PANELA, foreground="white", selectbackground="#334155")
-        self.stil.configure("TCheckbutton", background=BOJA_POZADINE, foreground=BOJA_TEKSTA)
-        
-        # Moderni gumbi
-        self.stil.configure("TButton", font=("Arial", 10, "bold"), background="#334155", foreground="white", borderwidth=0, padding=6)
-        self.stil.map("TButton", background=[("active", "#475569")])
-        
-        self.stil.configure("Glavni.TButton", font=("Arial", 12, "bold"), background="#0EA5E9", foreground="white", borderwidth=0, padding=12)
-        self.stil.map("Glavni.TButton", background=[("active", "#0284C7")])
-
-    def kreiraj_sucelje(self):
-        okvir = ttk.Frame(self.root, padding=25)
-        okvir.pack(fill=tk.BOTH, expand=True)
-        
-        ttk.Label(okvir, text="📚 Premium PDF Book Studio", style="Naslov.TLabel").pack(anchor=tk.W, pady=(0, 15))
-        
-        # --- VIZUALNI FLOWCHART PANEL ---
-        panel_toka = tk.Frame(okvir, bg="#0F172A", bd=1, relief=tk.SOLID)
-        panel_toka.pack(fill=tk.X, pady=(0, 20))
-        
-        lbl_ulaz = tk.Label(panel_toka, text="📖 ULAZNI FORMATI\n[ JPG, JP2, PNG, BMP, GIF ]", bg="#0F172A", fg="#38BDF8", font=("Arial", 9, "bold"), justify=tk.CENTER)
-        lbl_ulaz.pack(side=tk.LEFT, expand=True, pady=15)
-        
-        lbl_strelica = tk.Label(panel_toka, text="  ➔  ➔  ➔  ", bg="#0F172A", fg="#F59E0B", font=("Arial", 14, "bold"))
-        lbl_strelica.pack(side=tk.LEFT)
-        
-        lbl_izlaz = tk.Label(panel_toka, text="📄 IZLAZNI DOKUMENT\n[ Optimizirani PDF ]", bg="#0F172A", fg="#10B981", font=("Arial", 9, "bold"), justify=tk.CENTER)
-        lbl_izlaz.pack(side=tk.RIGHT, expand=True, pady=15)
-        
-        # --- 1. KORAK: ULAZ ---
-        ttk.Label(okvir, text="1. Odaberite izvor (Cijela mapa ili pojedinacne slike):", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(0, 6))
-        okvir_gumbiju = ttk.Frame(okvir)
-        okvir_gumbiju.pack(fill=tk.X, pady=(0, 5))
-        
-        ttk.Button(okvir_gumbiju, text="📂 Ucitaj cijelu mapu...", command=self.odaberi_mapu).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10))
-        ttk.Button(okvir_gumbiju, text="🖼️ Odaberi datoteke...", command=self.odaberi_datoteke_pojedinacno).pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
-        ttk.Label(okvir, textvariable=self.odabrani_putokaz, font=("Arial", 9, "italic"), foreground="#94A3B8").pack(anchor=tk.W, pady=(0, 15))
-        
-        # --- 2. KORAK: ODREDIŠTE ---
-        ttk.Label(okvir, text="2. Lokacija i naziv novog PDF dokumenta:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(0, 6))
-        okvir_izlaz = ttk.Frame(okvir)
-        okvir_izlaz.pack(fill=tk.X, pady=(0, 20))
-        
-        polje_izlaz = ttk.Entry(okvir_izlaz, textvariable=self.izlazni_pdf, font=("Arial", 10))
-        polje_izlaz.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        ttk.Button(okvir_izlaz, text="Spremi kao...", command=self.odaberi_pdf).pack(side=tk.RIGHT)
-        
-        # --- 3. KORAK: NAPREDNE POSTAVKE ---
-        okvir_postavke = tk.LabelFrame(okvir, text=" Napredne Postavke ", bg="#1E293B", fg="#38BDF8", font=("Arial", 9, "bold"), padx=15, pady=15, bd=1, relief=tk.SOLID)
-        okvir_postavke.pack(fill=tk.X, pady=(0, 25))
-        
-        # Format papira
-        okvir_format = ttk.Frame(okvir_postavke)
-        okvir_format.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 15))
-        ttk.Label(okvir_format, text="Format papira:").pack(anchor=tk.W, pady=2)
-        izbornik_formata = ttk.Combobox(okvir_format, textvariable=self.odabrani_format, values=list(FORMATE_PAPIRA.keys()), state="readonly")
-        izbornik_formata.pack(fill=tk.X)
-        
-        # Kompresija
-        okvir_kompresija = ttk.Frame(okvir_postavke)
-        okvir_kompresija.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 15))
-        ttk.Label(okvir_kompresija, text="Kvaliteta slika (1-100):").pack(anchor=tk.W, pady=2)
-        okvir_klizaca = ttk.Frame(okvir_kompresija)
-        okvir_klizaca.pack(fill=tk.X)
-        klizac = ttk.Scale(okvir_klizaca, from_=1, to=100, variable=self.kvaliteta_kompresije, command=self.azuriraj_oznaku_kvalitete)
-        klizac.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.oznaka_kvalitete = ttk.Label(okvir_klizaca, text=f"{self.kvaliteta_kompresije.get()}%", font=("Arial", 10, "bold"), width=4)
-        self.oznaka_kvalitete.pack(side=tk.RIGHT)
-        
-        okvir_ocr = ttk.Frame(okvir_postavke)
-        okvir_ocr.pack(side=tk.RIGHT, fill=tk.X, pady=(12, 0))
-        ttk.Checkbutton(okvir_ocr, text="Ukljuci OCR sloj", variable=self.ocr_ukljucen).pack(anchor=tk.E)
-        
-        # --- 4. GLAVNI AKCIJSKI GUMB ---
-        self.gumb_pokreni = ttk.Button(okvir, text="⚡ POKRENI OPTIMIZIRANU PRETVORBU KNJIGE", style="Glavni.TButton", command=self.pokreni_pretvorbu)
-        self.gumb_pokreni.pack(fill=tk.X)
-
-    def azuriraj_oznaku_kvalitete(self, *args):
-        self.oznaka_kvalitete.config(text=f"{int(self.kvaliteta_kompresije.get())}%")
-
-    def odaberi_mapu(self):
-        mapa = filedialog.askdirectory()
-        if mapa:
-            self.izvor_tip.set("mapa")
-            self.odabrane_datoteke_lista = []
-            self.odabrani_putokaz.set(f"Odabrana mapa: {mapa}")
-            self.izlazni_pdf.set(os.path.join(mapa, "skenirana_knjiga_studio.pdf"))
-
-    def odaberi_datoteke_pojedinacno(self):
-        ekstenzije = [("Sve podrzane slike", "*.jpg *.jpeg *.png *.bmp *.jp2 *.gif")]
-        datoteke = filedialog.askopenfilenames(filetypes=ekstenzije)
-        if datoteke:
-            self.izvor_tip.set("datoteke")
-            self.odabrane_datoteke_lista = list(datoteke)
-            self.odabrane_datoteke_lista.sort()
-            prvi_direktorij = os.path.dirname(self.odabrane_datoteke_lista)
-            self.odabrani_putokaz.set(f"Odabrano: {len(self.odabrane_datoteke_lista)} slika.")
-            self.izlazni_pdf.set(os.path.join(prvi_direktorij, "izabrane_stranice_studio.pdf"))
-
-    def odaberi_pdf(self):
-        datoteka = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF datoteke", "*.pdf")])
-        if datoteka:
-            self.izlazni_pdf.set(datoteka)
-
-    def pokreni_pretvorbu(self):
-        izlaz = self.izlazni_pdf.get()
-        if not izlaz:
-            messagebox.showerror("Greska", "Molimo definirajte lokaciju izlaznog PDF-a!")
-            return
+        def kreiraj_sucelje(self):
+            BG_TAMNA = "#1E293B"
+            BG_PANEL = "#0F172A"
+            PLAVA_TEKST = "#38BDF8"
+            ZELENA_GUMB = "#0EA5E9"
+            ZELENA_GUMB_HOVER = "#0284C7"
+            SIVA_GUMB = "#334155"
+            SIVA_GUMB_HOVER = "#475569"
+            TEKST_BIJELI = "#F8FAFC"
             
-        slike_za_obradu = []
-        if self.izvor_tip.get() == "mapa":
+            tk.Label(self.root, text="📚 Premium PDF Book Studio", font=("Segoe UI", 16, "bold"), bg=BG_TAMNA, fg=PLAVA_TEKST).pack(pady=(15, 5))
+            
+            panel_toka = tk.Frame(self.root, bg=BG_PANEL, bd=1, relief=tk.SOLID)
+            panel_toka.pack(fill=tk.X, padx=20, pady=(0, 15))
+            
+            tk.Label(panel_toka, text="📖 ULAZNI FORMATI\n[ JPG, JP2, PNG, BMP, GIF ]", bg=BG_PANEL, fg=PLAVA_TEKST, font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT, expand=True, pady=10)
+            tk.Label(panel_toka, text="  ➔  ➔  ➔  ", bg=BG_PANEL, fg="#F59E0B", font=("Segoe UI", 16, "bold")).pack(side=tk.LEFT)
+            tk.Label(panel_toka, text="📄 IZLAZNI FILE\n[ Optimizirani PDF ]", bg=BG_PANEL, fg="#10B981", font=("Segoe UI", 9, "bold")).pack(side=tk.RIGHT, expand=True, pady=10)
+            
+            okvir_ulaz = tk.LabelFrame(self.root, text=" 1. Odabir izvornih slika ", font=("Segoe UI", 10, "bold"), bg=BG_TAMNA, fg=PLAVA_TEKST, padx=10, pady=10, bd=1, relief=tk.SOLID)
+            okvir_ulaz.pack(fill=tk.X, padx=20, pady=5)
+            
+            btn_mapa = tk.Button(okvir_ulaz, text="📂 Ucitaj cijelu mapu...", command=self.odaberi_mapu, font=("Segoe UI", 10, "bold"), bg=SIVA_GUMB, fg=TEKST_BIJELI, bd=0, activebackground=SIVA_GUMB_HOVER, activeforeground=TEKST_BIJELI)
+            btn_mapa.pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
+            
+            btn_file = tk.Button(okvir_ulaz, text="🖼️ Odaberi datoteke...", command=self.odaberi_datoteke_pojedinacno, font=("Segoe UI", 10, "bold"), bg=SIVA_GUMB, fg=TEKST_BIJELI, bd=0, activebackground=SIVA_GUMB_HOVER, activeforeground=TEKST_BIJELI)
+            btn_file.pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
+            
+            lbl_putanja = tk.Label(okvir_ulaz, textvariable=self.odabrani_putokaz, font=("Segoe UI", 9, "italic"), bg=BG_TAMNA, fg="#94A3B8")
+            lbl_putanja.pack(anchor=tk.W, padx=5, pady=(8, 0))
+            
+            okvir_izlaz = tk.LabelFrame(self.root, text=" 2. Odrediste PDF datoteke ", font=("Segoe UI", 10, "bold"), bg=BG_TAMNA, fg=PLAVA_TEKST, padx=10, pady=10, bd=1, relief=tk.SOLID)
+            okvir_izlaz.pack(fill=tk.X, padx=20, pady=5)
+            
+            polje_izlaz = tk.Entry(okvir_izlaz, textvariable=self.izlazni_pdf, font=("Segoe UI", 10), bg=BG_PANEL, fg=TEKST_BIJELI, insertbackground=TEKST_BIJELI, bd=1, relief=tk.SOLID)
+            polje_izlaz.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, ipady=3)
+            
+            btn_spremas = tk.Button(okvir_izlaz, text="Spremi kao...", command=self.odaberi_pdf, font=("Segoe UI", 9, "bold"), bg=SIVA_GUMB, fg=TEKST_BIJELI, bd=0, activebackground=SIVA_GUMB_HOVER, activeforeground=TEKST_BIJELI)
+            btn_spremas.pack(side=tk.RIGHT, padx=5)
+            
+            okvir_postavke = tk.LabelFrame(self.root, text=" Napredne Postavke ", font=("Segoe UI", 10, "bold"), bg=BG_TAMNA, fg=PLAVA_TEKST, padx=15, pady=15, bd=1, relief=tk.SOLID)
+            okvir_postavke.pack(fill=tk.X, padx=20, pady=10)
+            
+            tk.Label(okvir_postavke, text="Format papira:", bg=BG_TAMNA, fg=TEKST_BIJELI).grid(row=0, column=0, sticky=tk.W, padx=5)
+            izbornik = tk.OptionMenu(okvir_postavke, self.odabrani_format, *list(FORMATE_PAPIRA.keys()))
+            izbornik.config(font=("Segoe UI", 9, "bold"), bg=SIVA_GUMB, fg=TEKST_BIJELI, bd=0, activebackground=SIVA_GUMB_HOVER, activeforeground=TEKST_BIJELI, highlightthickness=0)
+            izbornik["menu"].config(bg=BG_PANEL, fg=TEKST_BIJELI)
+            izbornik.grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+            
+            tk.Label(okvir_postavke, text="Kvaliteta (1-100):", bg=BG_TAMNA, fg=TEKST_BIJELI).grid(row=0, column=1, sticky=tk.W, padx=25)
+            red_klizaca = tk.Frame(okvir_postavke, bg=BG_TAMNA)
+            red_klizaca.grid(row=1, column=1, sticky=tk.W, padx=25)
+            klizac = tk.Scale(red_klizaca, from_=1, to=100, variable=self.kvaliteta_kompresije, orient=tk.HORIZONTAL, length=130, showvalue=False, bg=BG_TAMNA, fg=TEKST_BIJELI, highlightthickness=0, troughcolor=BG_PANEL, command=self.azuriraj_oznaku_kvalitete)
+            klizac.pack(side=tk.LEFT)
+            self.oznaka_kvalitete = tk.Label(red_klizaca, text=f"{self.kvaliteta_kompresije.get()}%", font=("Segoe UI", 10, "bold"), bg=BG_TAMNA, fg=TEKST_BIJELI, width=4)
+            self.oznaka_kvalitete.pack(side=tk.LEFT, padx=5)
+            
+            tk.Label(okvir_postavke, text="Tekstualni sloj:", bg=BG_TAMNA, fg=TEKST_BIJELI).grid(row=0, column=2, sticky=tk.W, padx=20)
+            chk_ocr = tk.Checkbutton(okvir_postavke, text="Ukljuci OCR sloj", variable=self.ocr_ukljucen, bg=BG_TAMNA, fg=TEKST_BIJELI, selectcolor=BG_PANEL, activebackground=BG_TAMNA, activeforeground=TEKST_BIJELI, highlightthickness=0)
+            chk_ocr.grid(row=1, column=2, sticky=tk.W, padx=20)
+            
+            btn_pokreni = tk.Button(self.root, text="⚡ POKRENI OPTIMIZIRANU PRETVORBU KNJIGE", font=("Segoe UI", 12, "bold"), bg=ZELENA_GUMB, fg=TEKST_BIJELI, bd=0, activebackground=ZELENA_GUMB_HOVER, activeforeground=TEKST_BIJELI, command=self.pokreni_pretvorbu)
+            btn_pokreni.pack(fill=tk.X, padx=20, pady=15, ipady=8)
 
+        def azuriraj_oznaku_kvalitete(self, *args):
+            self.oznaka_kvalitete.config(text=f"{int(self.kvaliteta_kompresije.get())}%")
+
+        def odaberi_mapu(self):
+            mapa = filedialog.askdirectory()
+            if mapa:
+                self.izvor_tip.set("mapa")
+                self.odabrane_datoteke_lista = []
+                self.odabrani_putokaz.set(f"Odabrana mapa: {mapa}")
+                self.izlazni_pdf.set(os.path.join(mapa, "skenirana_knjiga_studio.pdf"))
+
+        def odaberi_datoteke_pojedinacno(self):
+            datoteke = filedialog.askopenfilenames(title="Odaberite slike", filetypes=[("Sve podrzane slike", "*.jpg *.jpeg *.png *.bmp *.jp2 *.gif")])
+            if datoteke:
+                self.izvor_tip.set("datoteke")
+                self.odabrane_datoteke_lista = list(datoteke)
+                self.odabrane_datoteke_lista.sort()
+                prvi_direktorij = os.path.dirname(self.odabrane_datoteke_lista)
+                self.odabrani_putokaz.set(f"Odabrano: {len(self.odabrane_datoteke_lista)} slika.")
+                self.izlazni_pdf.set(os.path.join(prvi_direktorij, "izabrane_stranice_studio.pdf"))
+
+        def odaberi_pdf(self):
+            datoteka = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF datoteke", "*.pdf")])
+            if datoteka:
+                self.izlazni_pdf.set(datoteka)
+
+        def pokreni_pretvorbu(self):
+            izlaz = self.izlazni_pdf.get()
+            if not izlaz:
+                messagebox.showerror("Greska", "Molimo definirajte lokaciju izlaznog PDF-a!")
+                return
+                
+            slike_za_obradu = []
+            if self.izvor_tip.get() == "mapa":
