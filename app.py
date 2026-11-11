@@ -182,7 +182,7 @@ class PremiumPDFStudio:
             indeks = self.lista_box.curselection()
             if not indeks:
                 return
-            putanja_slike = self.odabrane_datoteke_lista[indeks[0]]
+            putanja_slike = self.odabrane_datoteke_lista[indeks]
             
             img = Image.open(putanja_slike)
             img.thumbnail((120, 90))

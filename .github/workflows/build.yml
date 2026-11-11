@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Prebacujemo na Linux kako bismo izbjegli grafičke greške Windows mašine
+    runs-on: windows-latest
 
     steps:
     - name: Budjenje repozitorija
@@ -24,12 +24,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Kompajliranje aplikacije u Windows EXE format
+    - name: Kompajliranje u Windows EXE (Zaobilazak PowerShell zabrane)
       run: |
-        pyinstaller --onefile --name="Premium_PDF_Book_Studio" app.py
+        python -m PyInstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
     - name: Spremanje gotovog EXE fajla
       uses: actions/upload-artifact@v4
       with:
         name: Premium-PDF-Book-Studio-Portable
-        path: dist/Premium_PDF_Book_Studio
+        path: dist/Premium_PDF_Book_Studio.exe
