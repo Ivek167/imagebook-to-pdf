@@ -6,30 +6,30 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest # Koristimo Linux jer je 100% stabilan u oblaku
 
     steps:
-    # Nadograđeno na najnovije verzije koje nativno podržavaju Node 24 okruženje
     - name: Preuzimanje koda
       uses: actions/checkout@v4.2.2
 
-    - name: Pokretanje ispravnog Pythona
+    - name: Pokretanje Pythona
       uses: actions/setup-python@v5.3.0
       with:
         python-version: '3.11'
-        architecture: 'x64'
 
-    - name: Instalacija biblioteka
+    - name: Instalacija Linux i Python paketa za Windows EXE
       run: |
+        sudo apt-get update
+        sudo apt-get install -y mingw-w64
         python -m pip install --upgrade pip
         pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Izrada EXE aplikacije
+    - name: Izrada Windows EXE aplikacije na Linuxu
       run: |
-        python -m PyInstaller --onefile --name="Premium_PDF_Book_Studio" app.py
+        pyinstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
-    - name: Upload programa
+    - name: Upload gotovog programa
       uses: actions/upload-artifact@v4.4.3
       with:
         name: Premium-PDF-Book-Studio-Portable
-        path: dist/Premium_PDF_Book_Studio.exe
+        path: dist/Premium_PDF_Book_Studio
