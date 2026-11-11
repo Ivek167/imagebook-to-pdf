@@ -10,12 +10,12 @@ from PIL import Image, ImageTk
 try:
     import pillow_heif
     pillow_heif.register_heif_opener()
-except ImportError:
+except Exception:
     pass
 
 try:
     import pytesseract
-except ImportError:
+except Exception:
     pytesseract = None
 
 # Strogo definiranje putanje za Portable način rada (.ini ide uz EXE)
@@ -169,7 +169,7 @@ class PremiumPDFStudio:
             self.odabrane_datoteke_lista.sort()
             self.osvjezi_listu_gui()
             if self.odabrane_datoteke_lista:
-                self.izlazni_pdf_putanja.set(os.path.join(os.path.dirname(self.odabrane_datoteke_lista[0]), "nova_knjiga.pdf"))
+                self.izlazni_pdf_putanja.set(os.path.join(os.path.dirname(self.odabrane_datoteke_lista), "nova_knjiga.pdf"))
 
     def osvjezi_listu_gui(self):
         self.lista_box.delete(0, tk.END)
@@ -187,3 +187,4 @@ class PremiumPDFStudio:
             img = Image.open(putanja_slike)
             img.thumbnail((120, 90))
             
+            self.photo_thumb = ImageTk.PhotoImage(img)

@@ -19,14 +19,14 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Prisilna instalacija svih paketa odjednom
+    - name: Instalacija svih paketa s fiksnim verzijama
       run: |
         python -m pip install --upgrade pip
         pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Kompajliranje aplikacije u EXE
+    - name: Sigurno kompajliranje preko Python modula (Zaobilazak Windows blokade)
       run: |
-        pyinstaller --onefile --name="Premium_PDF_Book_Studio" app.py
+        python -m PyInstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
     - name: Spremanje gotovog EXE fajla
       uses: actions/upload-artifact@v4
