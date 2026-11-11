@@ -3,32 +3,32 @@ name: Build Premium PDF Studio EXE
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: Budjenje repozitorija
+    - name: Preuzimanje koda
       uses: actions/checkout@v4
 
-    - name: Postavi Python
+    # Popravak: Koristimo stabilnu Python 3.10 verziju i eksplicitno tražimo x64 arhitekturu
+    - name: Pokretanje ispravnog Pythona
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.10'
+        architecture: 'x64'
 
-    - name: Instalacija svih potrebnih paketa
+    - name: Instalacija biblioteka
       run: |
         python -m pip install --upgrade pip
         pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Kompajliranje u Windows EXE (Zaobilazak PowerShell zabrane)
+    - name: Izrada EXE aplikacije
       run: |
         python -m PyInstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
-    - name: Spremanje gotovog EXE fajla
+    - name: Upload programa
       uses: actions/upload-artifact@v4
       with:
         name: Premium-PDF-Book-Studio-Portable
