@@ -2,13 +2,13 @@ name: Build Premium PDF Studio EXE
 
 on:
   push:
-    branches: [ "main" ] # Pokreće se automatski kada pošaljete kod na glavnu granu
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: windows-latest # GitHub pokreće pravu Windows mašinu u oblaku
+    runs-on: windows-latest
 
     steps:
     - name: Dohvati kod s repozitorija
@@ -17,20 +17,17 @@ jobs:
     - name: Postavi Python okruženje
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Stabilna verzija Pythona za pakiranje
+        python-version: '3.11'
 
     - name: Instaliraj potrebne knjižnice
       run: |
         python -m pip install --upgrade pip
-        pip install Pillow pillow-heif pytesseract pyinstaller
+        pip install -r requirements.txt
+        pip install pyinstaller
 
-    - name: Kompajliraj aplikaciju u Portable EXE
+    - name: Kompajliraj aplikaciju u Portable EXE (s konzolom radi provjere greške)
       run: |
-        pyinstaller --onefile --noconsole --name="Premium_PDF_Book_Studio" app.py
-      # Objašnjenje zastavica:
-      # --onefile: Pakira sve u samo jednu samostalnu .exe datoteku
-      # --noconsole: Skriva crni terminal u pozadini, otvara se samo čisti grafički GUI
-      # --name: Definira točan naziv vaše gotove aplikacije
+        pyinstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
     - name: Pohrani gotovu aplikaciju na GitHub (Artifact)
       uses: actions/upload-artifact@v4
