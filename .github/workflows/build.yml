@@ -11,25 +11,24 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Dohvati kod s repozitorija
+    - name: Budjenje repozitorija
       uses: actions/checkout@v4
 
-    - name: Postavi Python okruženje
+    - name: Postavi Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Instaliraj potrebne knjižnice
+    - name: Prisilna instalacija svih paketa odjednom
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
+        pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Kompajliraj aplikaciju u Portable EXE (s konzolom radi provjere greške)
+    - name: Kompajliranje aplikacije u EXE
       run: |
         pyinstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
-    - name: Pohrani gotovu aplikaciju na GitHub (Artifact)
+    - name: Spremanje gotovog EXE fajla
       uses: actions/upload-artifact@v4
       with:
         name: Premium-PDF-Book-Studio-Portable
