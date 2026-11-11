@@ -1,35 +1,39 @@
-name: Build Windows Exe
+name: Build Premium PDF Studio EXE
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main" ] # Pokreće se automatski kada pošaljete kod na glavnu granu
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: windows-2025 # Prebaceno na najnoviji Windows posluzitelj koji ima ugraden Node 22
+    runs-on: windows-latest # GitHub pokreće pravu Windows mašinu u oblaku
 
     steps:
-    - name: Preuzimanje koda
+    - name: Dohvati kod s repozitorija
       uses: actions/checkout@v4
 
-    - name: Postavljanje Pythona
+    - name: Postavi Python okruženje
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Koristi stabilniji i brzi Python 3.11
-        cache: 'pip'
+        python-version: '3.11' # Stabilna verzija Pythona za pakiranje
 
-    - name: Instalacija biblioteka
+    - name: Instaliraj potrebne knjižnice
       run: |
         python -m pip install --upgrade pip
-        pip install pillow pyinstaller
+        pip install Pillow pillow-heif pytesseract pyinstaller
 
-    - name: Pakiranje u EXE
+    - name: Kompajliraj aplikaciju u Portable EXE
       run: |
-        pyinstaller --noconsole --onefile app.py
+        pyinstaller --onefile --noconsole --name="Premium_PDF_Book_Studio" app.py
+      # Objašnjenje zastavica:
+      # --onefile: Pakira sve u samo jednu samostalnu .exe datoteku
+      # --noconsole: Skriva crni terminal u pozadini, otvara se samo čisti grafički GUI
+      # --name: Definira točan naziv vaše gotove aplikacije
 
-    - name: Podizanje gotove aplikacije
+    - name: Pohrani gotovu aplikaciju na GitHub (Artifact)
       uses: actions/upload-artifact@v4
       with:
-        name: PDF-Konverter-Knjiga
-        path: dist/app.exe
+        name: Premium-PDF-Book-Studio-Portable
+        path: dist/Premium_PDF_Book_Studio.exe
