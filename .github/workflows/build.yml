@@ -9,14 +9,14 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    # Nadograđeno na najnovije verzije koje nativno podržavaju Node 24 okruženje
     - name: Preuzimanje koda
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4.2.2
 
-    # Popravak: Koristimo stabilnu Python 3.10 verziju i eksplicitno tražimo x64 arhitekturu
     - name: Pokretanje ispravnog Pythona
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v5.3.0
       with:
-        python-version: '3.10'
+        python-version: '3.11'
         architecture: 'x64'
 
     - name: Instalacija biblioteka
@@ -29,7 +29,7 @@ jobs:
         python -m PyInstaller --onefile --name="Premium_PDF_Book_Studio" app.py
 
     - name: Upload programa
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4.4.3
       with:
         name: Premium-PDF-Book-Studio-Portable
         path: dist/Premium_PDF_Book_Studio.exe
