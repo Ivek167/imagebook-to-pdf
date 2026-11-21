@@ -1,7 +1,5 @@
 import os
 import sys
-
-# Prisilni importi na samom vrhu kako bi ih PyInstaller obavezno ugradio u .exe
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import configparser
@@ -18,7 +16,6 @@ try:
 except Exception:
     pytesseract = None
 
-# Strogo definiranje putanje za Portable način rada (.ini ide uz EXE)
 if getattr(sys, 'frozen', False):
     PROGRAM_DIR = os.path.dirname(sys.executable)
 else:
@@ -37,10 +34,9 @@ class PremiumPDFStudio:
         self.root = root
         self.root.title("Premium PDF Book Studio v3.0 (Portable)")
         self.root.geometry("780x580")
-        self.root.configure(bg="#0F172A") # Izrazito tamna moderna tema
+        self.root.configure(bg="#0F172A")
         self.root.resizable(False, False)
         
-        # Varijable
         self.odabrane_datoteke_lista = []
         self.izlazni_pdf_putanja = tk.StringVar()
         self.odabrani_format = tk.StringVar(value="A4")
@@ -188,3 +184,8 @@ class PremiumPDFStudio:
             img.thumbnail((120, 90))
             
             self.photo_thumb = ImageTk.PhotoImage(img)
+            self.lbl_thumb.config(image=self.photo_thumb, text="")
+        except Exception:
+            self.lbl_thumb.config(image="", text="[Prikaz nedostupan]")
+
+    def definiraj_izlaz(self):
