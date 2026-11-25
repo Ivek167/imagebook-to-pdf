@@ -1,7 +1,5 @@
 import os
 import sys
-
-# Prisilni importi na samom vrhu kako bi ih PyInstaller obavezno ugradio u .exe
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import configparser
@@ -18,7 +16,6 @@ try:
 except Exception:
     pytesseract = None
 
-# Strogo definiranje putanje za Portable način rada (.ini ide uz EXE)
 if getattr(sys, 'frozen', False):
     PROGRAM_DIR = os.path.dirname(sys.executable)
 else:
@@ -37,10 +34,9 @@ class PremiumPDFStudio:
         self.root = root
         self.root.title("Premium PDF Book Studio v3.0 (Portable)")
         self.root.geometry("780x580")
-        self.root.configure(bg="#0F172A") # Izrazito tamna moderna tema
+        self.root.configure(bg="#0F172A")
         self.root.resizable(False, False)
         
-        # Varijable
         self.odabrane_datoteke_lista = []
         self.izlazni_pdf_putanja = tk.StringVar()
         self.odabrani_format = tk.StringVar(value="A4")
@@ -76,7 +72,6 @@ class PremiumPDFStudio:
                 config.write(configfile)
         except Exception:
             pass
-
     def kreiraj_sucelje(self):
         BG_MAIN = "#0F172A"
         BG_PANEL = "#1E293B"
@@ -143,7 +138,6 @@ class PremiumPDFStudio:
         
         status_bar = tk.Label(self.root, textvariable=self.trenutni_status, bd=1, relief=tk.SUNKEN, anchor=tk.W, bg=BG_PANEL, fg="#94A3B8", font=("Segoe UI", 9, "italic"))
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
-
     def osvjezi_slider(self, val):
         self.lbl_kvaliteta.config(text=f"{val}%")
 
@@ -169,7 +163,12 @@ class PremiumPDFStudio:
             self.odabrane_datoteke_lista.sort()
             self.osvjezi_listu_gui()
             if self.odabrane_datoteke_lista:
-                self.izlazni_pdf_putanja.set(os.path.join(os.path.dirname(self.odabrane_datoteke_lista), "nova_knjiga.pdf"))
+                self.izlazni_pdf_putanja.set(os.path.join(os.path.dirname(self.odabrane_datoteke_lista[0]), "nova_knjiga.pdf"))
+
+    def definiraj_izlaz(self):
+        fajl = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF datoteke", "*.pdf")])
+        if fajl:
+            self.izlazni_pdf_putanja.set(fajl)
 
     def osvjezi_listu_gui(self):
         self.lista_box.delete(0, tk.END)
@@ -179,12 +178,56 @@ class PremiumPDFStudio:
 
     def prikazi_thumbnail(self, event):
         try:
-            indeks = self.lista_box.curselection()
-            if not indeks:
+            selection = self.lista_box.curselection()
+            if not selection:
                 return
+            indeks = selection[0]
             putanja_slike = self.odabrane_datoteke_lista[indeks]
             
             img = Image.open(putanja_slike)
             img.thumbnail((120, 90))
             
             self.photo_thumb = ImageTk.PhotoImage(img)
+            self.lbl_thumb.config(image=self.photo_thumb, text="")
+        except Exception:
+            self.lbl_thumb.config(image="", text="[Greška prikaza]")
+
+    def procesiraj_knjigu(self):
+        if not self.odabrane_datoteke_lista:
+            messagebox.showwarning("Upozorenje", "Niste odabrali nijednu stranicu!")
+            return
+        
+        izlazni_fajl = self.izlazni_pdf_putanja.get()
+        if not izlazni_fajl:
+            messagebox.showwarning("Upozorenje", "Molimo odaberite odredišnu putanju za PDF!")
+            return
+
+        self.spremi_postavke()
+        self.trenutni_status.set("Generiram PDF, molimo pričekajte...")
+        self.root.update_idletasks()
+
+        try:
+            dimenzije = FORMATE_PAPIRA.get(self.odabrani_format.get(), (595, 842))
+            slike_za_pdf = []
+
+            for putanja in self.odabrane_datoteke_lista:
+                img = Image.open(putanja).convert("RGB")
+                img = img.resize(dimenzije, Image.Resampling.LANCZOS)
+                slike_za_pdf.append(img)
+
+            if slike_za_pdf:
+                prva = slike_za_pdf[0]
+                ostale = slike_za_pdf[1:]
+                kvaliteta = self.kvaliteta_kompresije.get()
+                prva.save(izlazni_fajl, "PDF", save_all=True, append_images=ostale, quality=kvaliteta)
+
+            self.trenutni_status.set("PDF uspješno generiran!")
+            messagebox.showinfo("Uspjeh", f"PDF je spremljen na:\n{izlazni_fajl}")
+        except Exception as e:
+            messagebox.showerror("Greška", "Došlo je do pogreške pri generiranju PDF-a:\n" + str(e))
+            self.trenutni_status.set("Došlo je do pogreške.")
+
+    if __name__ == "__main__":
+        root = tk.Tk()
+        app = PremiumPDFStudio(root)
+        root.mainloop()
