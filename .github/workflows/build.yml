@@ -3,6 +3,8 @@ name: Build Premium PDF Studio EXE
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+
 
 jobs:
   build:
