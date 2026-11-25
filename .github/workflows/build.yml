@@ -5,10 +5,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-
 jobs:
   build:
-    runs-on: ubuntu-latest # Linux je 100% stabilan i proći će bez greške
+    runs-on: windows-latest
 
     steps:
     - name: Preuzimanje koda
@@ -22,13 +21,11 @@ jobs:
     - name: Instalacija biblioteka
       run: |
         python -m pip install --upgrade pip
-        pip install Pillow pillow-heif pytesseract pyinstaller
+        pip install -r requirements.txt pyinstaller
 
     - name: Izrada Windows aplikacije
       run: |
-        pyinstaller --onefile --noconsole --name="Premium_PDF_Book_Studio" app.py
-        # Trik: Ručno preimenujemo datoteku unutar servera u .exe format
-        mv dist/Premium_PDF_Book_Studio dist/Premium_PDF_Book_Studio.exe
+        pyinstaller --noconfirm --onefile --windowed --name "Premium_PDF_Book_Studio" app.py
 
     - name: Upload gotovog programa
       uses: actions/upload-artifact@v4
